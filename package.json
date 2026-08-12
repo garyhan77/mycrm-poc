@@ -1,0 +1,14 @@
+{
+  "name": "crm-poc",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run start:dev --workspace apps/api",
+    "dev:web": "npm run dev --workspace apps/web",
+    "test:api": "npm test --workspace apps/api",
+    "test:api:e2e": "npm run test:e2e --workspace apps/api",
+    "test:web": "npm test --workspace apps/web"
+  }
+}
