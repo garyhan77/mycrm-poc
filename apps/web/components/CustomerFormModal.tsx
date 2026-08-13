@@ -40,6 +40,18 @@ function toFormInput(customer: Customer): CustomerFormInput {
   };
 }
 
+type RequiredField = 'firstName' | 'lastName' | 'email';
+
+const REQUIRED_FIELD_MESSAGES: Record<RequiredField, string> = {
+  firstName: 'First name is required.',
+  lastName: 'Last name is required.',
+  email: 'Email is required.',
+};
+
+function inputClass(hasError: boolean): string {
+  return hasError ? 'input border-red-500 focus:border-red-500' : 'input';
+}
+
 interface CustomerFormModalProps {
   customer: Customer | null;
   onClose: () => void;
@@ -50,23 +62,41 @@ export default function CustomerFormModal({ customer, onClose, onSaved }: Custom
   const isEdit = customer !== null;
   const [form, setForm] = useState<CustomerFormInput>(customer ? toFormInput(customer) : EMPTY_FORM);
   const [errors, setErrors] = useState<string[]>([]);
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<RequiredField, string>>>({});
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setForm(customer ? toFormInput(customer) : EMPTY_FORM);
     setErrors([]);
+    setFieldErrors({});
   }, [customer]);
 
   function update<K extends keyof CustomerFormInput>(key: K, value: CustomerFormInput[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+    setFieldErrors((prev) => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key as RequiredField];
+      return next;
+    });
+  }
+
+  function validate(): boolean {
+    const nextFieldErrors: Partial<Record<RequiredField, string>> = {};
+    (Object.keys(REQUIRED_FIELD_MESSAGES) as RequiredField[]).forEach((field) => {
+      if (!form[field].trim()) {
+        nextFieldErrors[field] = REQUIRED_FIELD_MESSAGES[field];
+      }
+    });
+    setFieldErrors(nextFieldErrors);
+    return Object.keys(nextFieldErrors).length === 0;
   }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setErrors([]);
 
-    if (!form.firstName.trim() || !form.lastName.trim() || !form.email.trim()) {
-      setErrors(['First name, last name, and email are required.']);
+    if (!validate()) {
       return;
     }
 
@@ -118,27 +148,32 @@ export default function CustomerFormModal({ customer, onClose, onSaved }: Custom
           </div>
         )}
 
+        <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">Fields marked * are required.</p>
+
         <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="First name *">
+          <Field label="First name *" error={fieldErrors.firstName}>
             <input
-              className="input"
+              className={inputClass(Boolean(fieldErrors.firstName))}
               value={form.firstName}
               onChange={(e) => update('firstName', e.target.value)}
+              aria-invalid={Boolean(fieldErrors.firstName)}
             />
           </Field>
-          <Field label="Last name *">
+          <Field label="Last name *" error={fieldErrors.lastName}>
             <input
-              className="input"
+              className={inputClass(Boolean(fieldErrors.lastName))}
               value={form.lastName}
               onChange={(e) => update('lastName', e.target.value)}
+              aria-invalid={Boolean(fieldErrors.lastName)}
             />
           </Field>
-          <Field label="Email *">
+          <Field label="Email *" error={fieldErrors.email}>
             <input
               type="email"
-              className="input"
+              className={inputClass(Boolean(fieldErrors.email))}
               value={form.email}
               onChange={(e) => update('email', e.target.value)}
+              aria-invalid={Boolean(fieldErrors.email)}
             />
           </Field>
           <Field label="Phone">
@@ -241,11 +276,26 @@ export default function CustomerFormModal({ customer, onClose, onSaved }: Custom
   );
 }
 
-function Field({ label, full, children }: { label: string; full?: boolean; children: React.ReactNode }) {
+function Field({
+  label,
+  full,
+  error,
+  children,
+}: {
+  label: string;
+  full?: boolean;
+  error?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <label className={`flex flex-col gap-1 text-sm ${full ? 'sm:col-span-2' : ''}`}>
-      <span className="text-zinc-600 dark:text-zinc-400">{label}</span>
-      {children}
-    </label>
+    <div className={`flex flex-col gap-1 text-sm ${full ? 'sm:col-span-2' : ''}`}>
+      {/* Error rendered as a sibling, not inside <label>, so it doesn't get
+          absorbed into the label's accessible name once it appears. */}
+      <label className="flex flex-col gap-1">
+        <span className="text-zinc-600 dark:text-zinc-400">{label}</span>
+        {children}
+      </label>
+      {error && <span className="text-xs text-red-600 dark:text-red-400">{error}</span>}
+    </div>
   );
 }

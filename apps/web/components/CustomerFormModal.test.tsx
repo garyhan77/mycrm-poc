@@ -61,16 +61,54 @@ describe('CustomerFormModal', () => {
     expect(screen.getByLabelText('Company')).toHaveValue('Analytical Engines');
   });
 
-  it('blocks submission and shows an error when required fields are blank', async () => {
+  it('blocks submission and shows a message under each blank required field', async () => {
     const user = userEvent.setup();
     render(<CustomerFormModal customer={null} onClose={jest.fn()} onSaved={jest.fn()} />);
 
     await user.click(screen.getByRole('button', { name: 'Add customer' }));
 
-    expect(
-      screen.getByText('First name, last name, and email are required.'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('First name is required.')).toBeInTheDocument();
+    expect(screen.getByText('Last name is required.')).toBeInTheDocument();
+    expect(screen.getByText('Email is required.')).toBeInTheDocument();
     expect(mockCreateCustomer).not.toHaveBeenCalled();
+  });
+
+  it('highlights each blank required field in red and marks it aria-invalid', async () => {
+    const user = userEvent.setup();
+    render(<CustomerFormModal customer={null} onClose={jest.fn()} onSaved={jest.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Add customer' }));
+
+    expect(screen.getByLabelText('First name *')).toHaveClass('border-red-500');
+    expect(screen.getByLabelText('First name *')).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByLabelText('Last name *')).toHaveClass('border-red-500');
+    expect(screen.getByLabelText('Email *')).toHaveClass('border-red-500');
+  });
+
+  it('only flags the fields that are actually blank', async () => {
+    const user = userEvent.setup();
+    render(<CustomerFormModal customer={null} onClose={jest.fn()} onSaved={jest.fn()} />);
+
+    await user.type(screen.getByLabelText('First name *'), 'Grace');
+    await user.click(screen.getByRole('button', { name: 'Add customer' }));
+
+    expect(screen.queryByText('First name is required.')).not.toBeInTheDocument();
+    expect(screen.getByText('Last name is required.')).toBeInTheDocument();
+    expect(screen.getByLabelText('First name *')).not.toHaveClass('border-red-500');
+    expect(screen.getByLabelText('Last name *')).toHaveClass('border-red-500');
+  });
+
+  it('clears a field error as soon as the user starts typing in it', async () => {
+    const user = userEvent.setup();
+    render(<CustomerFormModal customer={null} onClose={jest.fn()} onSaved={jest.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Add customer' }));
+    expect(screen.getByText('First name is required.')).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('First name *'), 'G');
+
+    expect(screen.queryByText('First name is required.')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('First name *')).not.toHaveClass('border-red-500');
   });
 
   it('submits the filled-in form and calls onSaved on success', async () => {
