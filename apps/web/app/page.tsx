@@ -58,6 +58,16 @@ export default function Home() {
     setQuery(searchInput.trim());
   }
 
+  function handleSearchInputChange(value: string) {
+    setSearchInput(value);
+    // Clearing the box should immediately go back to the full list, not
+    // wait for another explicit Search click.
+    if (value === '') {
+      setPage(1);
+      setQuery('');
+    }
+  }
+
   function handleSortChange(column: SortableColumn) {
     if (sortBy === column) {
       setSortOrder((prev) => (prev === 'ASC' ? 'DESC' : 'ASC'));
@@ -141,7 +151,7 @@ export default function Home() {
             className="input max-w-sm"
             placeholder="Search by name, email, or company…"
             value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
+            onChange={(e) => handleSearchInputChange(e.target.value)}
           />
           <button
             type="submit"

@@ -81,6 +81,30 @@ describe('Home (landing page)', () => {
     );
   });
 
+  it('clearing the search box immediately goes back to the full list, without clicking Search again', async () => {
+    const user = userEvent.setup();
+    render(<Home />);
+
+    await screen.findByText('Ada');
+
+    const searchInput = screen.getByPlaceholderText(/Search by name/i);
+    await user.type(searchInput, 'lovelace');
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+
+    await waitFor(() =>
+      expect(mockListCustomers).toHaveBeenCalledWith(expect.objectContaining({ q: 'lovelace' })),
+    );
+
+    mockListCustomers.mockClear();
+    await user.clear(searchInput);
+
+    await waitFor(() =>
+      expect(mockListCustomers).toHaveBeenCalledWith(
+        expect.objectContaining({ q: undefined, page: 1 }),
+      ),
+    );
+  });
+
   it('opens the Add customer modal when the Add button is clicked', async () => {
     const user = userEvent.setup();
     render(<Home />);
