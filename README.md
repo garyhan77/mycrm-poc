@@ -2,7 +2,7 @@
 
 A proof-of-concept CRM for a digital/e-commerce business: customer operations (Add, View, Edit, Delete, Search), plus a reactivation-and-audit-trail extension. Built as a portfolio/coursework SDLC exercise: explicit MVC architecture, versioned migrations, full test coverage, and reverse-documented SDLC artifacts.
 
-See [`docs/`](docs/) for the full documentation set: [requirements](docs/01-requirements.md), [architecture](docs/02-architecture.md), [ERD](docs/03-erd.md), [sequence diagrams](docs/04-sequence-diagrams.md), [test plan](docs/05-test-plan.md), [decision records](docs/06-decisions.md), and the (deferred) [Azure deployment plan](docs/07-azure-deployment.md).
+See `docs/` for the full documentation set: [requirements](docs/01-requirements.md), [architecture](docs/02-architecture.md), [ERD](docs/03-erd.md), [sequence diagrams](docs/04-sequence-diagrams.md), [test plan](docs/05-test-plan.md), [decision records](docs/06-decisions.md), and the (deferred) [Azure deployment plan](docs/07-azure-deployment.md).
 
 ## Stack
 

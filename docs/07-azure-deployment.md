@@ -18,7 +18,7 @@ This is a ready-to-execute plan, documented per [[06-decisions|ADR-007]] but **n
 
 - An Azure account and subscription.
 - Azure CLI (`az`) installed and logged in (`az login`).
-- The two migrations in [`apps/api/src/migrations/`](../apps/api/src/migrations/) run cleanly locally (they already have, see [[05-test-plan|Test plan]]).
+- The two migrations in `apps/api/src/migrations/` run cleanly locally (they already have, see [[05-test-plan|Test plan]]).
 
 ## Steps
 

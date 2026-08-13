@@ -7,7 +7,7 @@ MyCRM is a two-tier application: a NestJS API and a Next.js frontend, talking ov
 | Layer | Responsibility | Real files |
 |---|---|---|
 | **Model** | Data shape, persistence, business rules | [`apps/api/src/customers/customer.entity.ts`](../apps/api/src/customers/customer.entity.ts), [`customer-activity.entity.ts`](../apps/api/src/customers/customer-activity.entity.ts), [`customers.service.ts`](../apps/api/src/customers/customers.service.ts) |
-| **Controller** | HTTP routing, request validation, status codes; no business logic | [`customers.controller.ts`](../apps/api/src/customers/customers.controller.ts), DTOs under [`customers/dto/`](../apps/api/src/customers/dto/) |
+| **Controller** | HTTP routing, request validation, status codes; no business logic | [`customers.controller.ts`](../apps/api/src/customers/customers.controller.ts), DTOs under `apps/api/src/customers/dto/` |
 | **View** | Rendering, user interaction; no direct database access | [`apps/web/app/page.tsx`](../apps/web/app/page.tsx), [`components/CustomerTable.tsx`](../apps/web/components/CustomerTable.tsx), [`components/CustomerFormModal.tsx`](../apps/web/components/CustomerFormModal.tsx) |
 
 The View never talks to MySQL directly; every read or write goes through the API via [`apps/web/lib/api.ts`](../apps/web/lib/api.ts), a thin typed fetch wrapper.
