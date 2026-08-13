@@ -4,7 +4,7 @@ tags: [research, crm-poc]
 
 # Framework choices
 
-Reference notes backing [[../../docs/06-decisions|Decision records]]. Fill in as research happens; the ADRs in `docs/` are the canonical, cleaned-up version of whatever lands here.
+Reference notes backing [[06-decisions|Decision records]]. Fill in as research happens; the ADRs in `docs/` are the canonical, cleaned-up version of whatever lands here.
 
 ## NestJS vs alternatives (backend)
 
