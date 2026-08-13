@@ -124,7 +124,6 @@ export default function CustomerFormModal({ customer, onClose, onSaved }: Custom
               className="input"
               value={form.firstName}
               onChange={(e) => update('firstName', e.target.value)}
-              required
             />
           </Field>
           <Field label="Last name *">
@@ -132,7 +131,6 @@ export default function CustomerFormModal({ customer, onClose, onSaved }: Custom
               className="input"
               value={form.lastName}
               onChange={(e) => update('lastName', e.target.value)}
-              required
             />
           </Field>
           <Field label="Email *">
@@ -141,7 +139,6 @@ export default function CustomerFormModal({ customer, onClose, onSaved }: Custom
               className="input"
               value={form.email}
               onChange={(e) => update('email', e.target.value)}
-              required
             />
           </Field>
           <Field label="Phone">
