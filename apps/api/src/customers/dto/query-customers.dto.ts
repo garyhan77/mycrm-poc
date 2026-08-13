@@ -25,7 +25,26 @@ export class QueryCustomersDto {
   limit?: number = 20;
 
   @IsOptional()
-  @IsIn(['firstName', 'lastName', 'email', 'createdAt', 'status'])
+  @IsIn([
+    'id',
+    'firstName',
+    'lastName',
+    'email',
+    'phone',
+    'company',
+    'status',
+    'addressLine1',
+    'addressLine2',
+    'city',
+    'province',
+    'postalCode',
+    'country',
+    'totalOrders',
+    'lifetimeValue',
+    'notes',
+    'createdAt',
+    'updatedAt',
+  ])
   sortBy?: string = 'createdAt';
 
   @IsOptional()

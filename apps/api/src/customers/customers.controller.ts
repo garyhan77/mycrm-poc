@@ -15,6 +15,7 @@ import { CustomersService } from './customers.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { QueryCustomersDto } from './dto/query-customers.dto';
+import { BulkDeleteCustomersDto } from './dto/bulk-delete-customers.dto';
 
 @Controller('customers')
 export class CustomersController {
@@ -38,6 +39,12 @@ export class CustomersController {
   @Patch(':id')
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateCustomerDto) {
     return this.customersService.update(id, dto);
+  }
+
+  @Delete()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  removeMany(@Body() dto: BulkDeleteCustomersDto) {
+    return this.customersService.removeMany(dto.ids);
   }
 
   @Delete(':id')

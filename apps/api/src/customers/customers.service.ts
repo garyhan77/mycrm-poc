@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Customer } from './customer.entity';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
@@ -75,8 +75,18 @@ export class CustomersService {
     await this.customersRepository.softRemove(customer);
   }
 
+  async removeMany(ids: number[]): Promise<void> {
+    const customers = await this.customersRepository.findBy({ id: In(ids) });
+    await this.customersRepository.softRemove(customers);
+  }
+
   private async assertEmailIsAvailable(email: string): Promise<void> {
-    const existing = await this.customersRepository.findOne({ where: { email } });
+    // withDeleted: the unique index on email still counts soft-deleted rows,
+    // so a deleted customer's email must also be treated as taken.
+    const existing = await this.customersRepository.findOne({
+      where: { email },
+      withDeleted: true,
+    });
     if (existing) {
       throw new ConflictException(`A customer with email ${email} already exists`);
     }
