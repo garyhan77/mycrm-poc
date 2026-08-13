@@ -6,6 +6,10 @@ tags: [moc, crm-poc]
 
 Working notes for the [[../docs/01-requirements|CRM PoC]] project. This vault section holds the thinking behind the build; the polished deliverables live in `docs/`.
 
+## Start here
+
+- [[STATUS]] — current snapshot: where things stand, next action, open items
+
 ## Deliverables
 
 - [[../docs/01-requirements|Requirements]]
