@@ -111,3 +111,15 @@ Lightweight ADRs (Architecture Decision Records) for the choices made building M
 **Decision.** Added `DELETE /api/customers` accepting `{ ids: number[] }`, soft-removing all of them (and logging one `DEACTIVATED` activity each) in one request.
 
 **Consequences.** One network round-trip instead of N, and one place (`removeMany`) to own the "soft-remove plus log" logic instead of relying on the frontend to fire N well-formed requests. The cost: it's an addition to the API surface made after Phase 2 had already been reviewed and committed, documented here rather than silently folded in.
+
+---
+
+## ADR-012: Force `status` to `INACTIVE` on delete, restore it on reactivation
+
+**Context.** Soft delete (ADR-005) only ever set `deletedAt`; the separate `status` field (`LEAD`/`ACTIVE`/`INACTIVE`, a business classification the user sets, not a system flag) was left untouched. Raised directly: a deleted customer queried by raw SQL without also filtering `deletedAt` could still show `status = 'ACTIVE'`, looking indistinguishable from a live one — confirmed live (`SELECT ... WHERE deletedAt IS NOT NULL` showed a deleted customer still marked `LEAD`).
+
+**Decision.** `remove()`/`removeMany()` now set `status = INACTIVE` before soft-removing. The prior status is captured on the `DEACTIVATED` `customer_activities` row (`previousStatus`, see [[03-erd|ERD]]) and restored automatically on reactivation — unless the Add form explicitly submits a new `status`, which wins (consistent with ADR-008's "only merge submitted fields" rule).
+
+**Consequences.** Raw queries against `customers.status` alone now correctly read as inactive for deleted customers, closing the gap that prompted this. The cost is real complexity: reactivation now needs an extra lookup (the customer's most recent `DEACTIVATED` activity) to know what to restore, and a customer deleted before this change shipped has no such row (defaults to `LEAD` on reactivation, since there's nothing to restore).
+
+**Bug caught while building this, not before shipping it:** TypeORM's `softRemove()` only persists the delete-date column — a `status` change set on the same entity object silently did not survive the call. Live-verified (`deletedAt` was set correctly, `status` stayed unchanged) before the fix was found. Fixed by an explicit `save()` of the status change before calling `softRemove()`. A plain mocked-repository unit test cannot catch this class of bug (the mock has no opinion on which fields `softRemove` "really" persists) — this one was only caught by testing against the real running app and a real MySQL database, which is why that step stays in the loop for behavior changes like this one rather than trusting unit tests alone.

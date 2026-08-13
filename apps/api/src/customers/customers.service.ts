@@ -1,7 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
-import { Customer } from './customer.entity';
+import { Customer, CustomerStatus } from './customer.entity';
 import { CustomerActivity, CustomerActivityType } from './customer-activity.entity';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
@@ -45,9 +45,20 @@ export class CustomersService {
       // initialized to `undefined` rather than being genuinely absent, so a
       // plain Object.assign(existing, dto) would overwrite every field the
       // client left blank with undefined. Only merge fields actually present.
-      const submittedFields = Object.fromEntries(
+      const submittedFields: Record<string, unknown> = Object.fromEntries(
         Object.entries(dto).filter(([, value]) => value !== undefined),
       );
+
+      if (!('status' in submittedFields)) {
+        // Delete forces status to INACTIVE (see remove/removeMany); restore
+        // whatever it was before, unless the Add form explicitly set a new one.
+        const lastDeactivation = await this.activityRepository.findOne({
+          where: { customerId: existing.id, type: CustomerActivityType.DEACTIVATED },
+          order: { occurredAt: 'DESC' },
+        });
+        submittedFields.status = lastDeactivation?.previousStatus ?? CustomerStatus.LEAD;
+      }
+
       Object.assign(existing, submittedFields);
       existing.deletedAt = null;
       const reactivated = await this.customersRepository.save(existing);
@@ -107,15 +118,27 @@ export class CustomersService {
 
   async remove(id: number): Promise<void> {
     const customer = await this.findOne(id);
+    const previousStatus = customer.status;
+    // softRemove() only persists the delete-date column, not other changed
+    // fields on the same entity -- the status change needs its own save().
+    customer.status = CustomerStatus.INACTIVE;
+    await this.customersRepository.save(customer);
     await this.customersRepository.softRemove(customer);
-    await this.logActivity(id, CustomerActivityType.DEACTIVATED);
+    await this.logActivity(id, CustomerActivityType.DEACTIVATED, previousStatus);
   }
 
   async removeMany(ids: number[]): Promise<void> {
     const customers = await this.customersRepository.findBy({ id: In(ids) });
+    const previousStatuses = new Map(customers.map((customer) => [customer.id, customer.status]));
+    customers.forEach((customer) => {
+      customer.status = CustomerStatus.INACTIVE;
+    });
+    await this.customersRepository.save(customers);
     await this.customersRepository.softRemove(customers);
     await Promise.all(
-      customers.map((customer) => this.logActivity(customer.id, CustomerActivityType.DEACTIVATED)),
+      customers.map((customer) =>
+        this.logActivity(customer.id, CustomerActivityType.DEACTIVATED, previousStatuses.get(customer.id)),
+      ),
     );
   }
 
@@ -143,8 +166,16 @@ export class CustomersService {
     }
   }
 
-  private async logActivity(customerId: number, type: CustomerActivityType): Promise<void> {
-    const activity = this.activityRepository.create({ customerId, type });
+  private async logActivity(
+    customerId: number,
+    type: CustomerActivityType,
+    previousStatus?: CustomerStatus,
+  ): Promise<void> {
+    const activity = this.activityRepository.create({
+      customerId,
+      type,
+      previousStatus: previousStatus ?? null,
+    });
     await this.activityRepository.save(activity);
   }
 }

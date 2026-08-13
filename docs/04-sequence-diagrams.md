@@ -36,6 +36,13 @@ sequenceDiagram
                 V-->>U: Show error banner
             else existing and soft-deleted
                 Note over S: Reactivation: merge only submitted<br/>fields, keep the rest untouched
+                opt dto.status not submitted
+                    S->>R: activityRepo.findOne(last DEACTIVATED for this customer)
+                    R->>DB: SELECT * FROM customer_activities<br/>WHERE customerId = ? AND type = 'DEACTIVATED'<br/>ORDER BY occurredAt DESC LIMIT 1
+                    DB-->>R: row or none
+                    R-->>S: previousStatus (or none -> defaults to LEAD)
+                    Note over S: Restores the status delete forced to<br/>INACTIVE, unless the form explicitly<br/>submitted a new one (dto wins)
+                end
                 S->>R: save(existing, deletedAt = null)
                 R->>DB: UPDATE customers SET ...
                 S->>R: activityRepo.save({customerId, type: REACTIVATED})
@@ -183,10 +190,14 @@ sequenceDiagram
     S->>R: findBy({ id: In(ids) })
     R->>DB: SELECT * FROM customers WHERE id IN (...)
     R-->>S: matching customers
+    Note over S: Records each customer's current status,<br/>then forces status to INACTIVE
+    S->>R: save(customers, status = INACTIVE)
+    R->>DB: UPDATE customers SET status = 'INACTIVE' WHERE id IN (...)
+    Note over S,R: softRemove() alone only persists the delete-<br/>date column in real TypeORM -- the status<br/>change needs its own save() call first
     S->>R: softRemove(customers)
     R->>DB: UPDATE customers SET deletedAt = NOW() WHERE id IN (...)
     loop each customer
-        S->>R: activityRepo.save({customerId, type: DEACTIVATED})
+        S->>R: activityRepo.save({customerId, type: DEACTIVATED, previousStatus})
         R->>DB: INSERT INTO customer_activities ...
     end
     S-->>C: void

@@ -7,7 +7,7 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { Customer } from './customer.entity';
+import { Customer, CustomerStatus } from './customer.entity';
 
 export enum CustomerActivityType {
   CREATED = 'CREATED',
@@ -30,6 +30,11 @@ export class CustomerActivity {
 
   @Column({ type: 'enum', enum: CustomerActivityType })
   type: CustomerActivityType;
+
+  // Only set on DEACTIVATED events: the customer's status immediately
+  // before it was forced to INACTIVE, so reactivation can restore it.
+  @Column({ type: 'enum', enum: CustomerStatus, nullable: true })
+  previousStatus: CustomerStatus | null;
 
   @CreateDateColumn()
   occurredAt: Date;

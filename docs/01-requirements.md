@@ -36,6 +36,7 @@ MyCRM is a proof-of-concept CRM for a digital/e-commerce business, scoped to a s
 - Each row has a checkbox; the header checkbox selects/deselects all rows on the current page.
 - The **Delete selected** button is disabled until at least one row is checked, and shows the live selection count.
 - Deletion is a **soft delete**: the record is hidden from the table, search, and view/edit, but the row is not physically removed from the database.
+- Deleting also sets the customer's `status` to `INACTIVE`, so a raw database query against `status` alone (not just `deletedAt`) correctly reflects that the customer is no longer live — see [[06-decisions|ADR-012]]. The prior status is remembered and restored automatically if the customer is later reactivated.
 - An unknown customer id returns `404 Not Found`.
 
 ### 5. Search customers
@@ -52,7 +53,7 @@ Raised mid-build and folded into the MVP: what should happen if a customer is re
 
 - **As** a CRM user, **I want to** re-add a customer by the email of someone I previously deleted **so that** their history isn't lost and they aren't blocked as a duplicate.
   - Re-adding with a soft-deleted customer's email reactivates that same record (same id, original `createdAt`) rather than creating a new row or returning a conflict.
-  - Only the fields submitted on the Add form are applied; anything left blank keeps its prior value (address, notes, order history, etc. survive the deletion/reactivation cycle).
+  - Only the fields submitted on the Add form are applied; anything left blank keeps its prior value (address, notes, order history, etc. survive the deletion/reactivation cycle) — including `status`, which delete had forced to `INACTIVE` and reactivation restores to whatever it was before, unless the form explicitly sets a new one.
   - A true duplicate, i.e. an email that belongs to a still-active customer, still returns `409 Conflict`.
 - **As** a CRM user, **I want to** see a customer's activity history **so that** I can audit when they were created, deactivated, and reactivated.
   - Every create, soft-delete, and reactivation is logged as a timestamped event (`CREATED` / `DEACTIVATED` / `REACTIVATED`).

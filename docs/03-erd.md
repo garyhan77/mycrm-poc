@@ -34,6 +34,7 @@ erDiagram
         int id PK
         int customerId FK
         enum type "CREATED | DEACTIVATED | REACTIVATED"
+        enum previousStatus "nullable, DEACTIVATED events only"
         datetime occurredAt
     }
 ```
@@ -50,7 +51,7 @@ Deliberately a single business entity plus one supporting audit table: this is t
 | `email` | `VARCHAR(255)` | No | — | **Unique index.** Still enforced for soft-deleted rows at the DB level, see [[06-decisions|Decision records]] |
 | `phone` | `VARCHAR(30)` | Yes | `NULL` | |
 | `company` | `VARCHAR(150)` | Yes | `NULL` | |
-| `status` | `ENUM('LEAD','ACTIVE','INACTIVE')` | No | `LEAD` | Indexed |
+| `status` | `ENUM('LEAD','ACTIVE','INACTIVE')` | No | `LEAD` | Indexed. Forced to `INACTIVE` on delete and restored on reactivation, see [[06-decisions|Decision records]] |
 | `addressLine1` | `VARCHAR(255)` | Yes | `NULL` | |
 | `addressLine2` | `VARCHAR(255)` | Yes | `NULL` | |
 | `city` | `VARCHAR(100)` | Yes | `NULL` | |
@@ -71,6 +72,7 @@ Deliberately a single business entity plus one supporting audit table: this is t
 | `id` | `INT` | No | auto-increment | Primary key |
 | `customerId` | `INT` | No | — | Foreign key → `customers.id`, `ON DELETE CASCADE`. Indexed |
 | `type` | `ENUM('CREATED','DEACTIVATED','REACTIVATED')` | No | — | One row per event; a customer's full audit trail is every row for its `customerId`, ordered by `occurredAt` |
+| `previousStatus` | `ENUM('LEAD','ACTIVE','INACTIVE')` | Yes | `NULL` | Only set on `DEACTIVATED` rows: the customer's `status` immediately before delete forced it to `INACTIVE`. Read back on reactivation to restore it |
 | `occurredAt` | `DATETIME(6)` | No | `CURRENT_TIMESTAMP(6)` | TypeORM-managed |
 
 ## Indexes

@@ -20,6 +20,7 @@ describe('CustomersService', () => {
     create: jest.Mock;
     save: jest.Mock;
     find: jest.Mock;
+    findOne: jest.Mock;
   };
   let qb: {
     andWhere: jest.Mock;
@@ -51,6 +52,7 @@ describe('CustomersService', () => {
       create: jest.fn((data) => data),
       save: jest.fn(async (entity) => entity),
       find: jest.fn(),
+      findOne: jest.fn().mockResolvedValue(null),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -77,6 +79,7 @@ describe('CustomersService', () => {
       expect(activityRepo.create).toHaveBeenCalledWith({
         customerId: 42,
         type: CustomerActivityType.CREATED,
+        previousStatus: null,
       });
       expect(activityRepo.save).toHaveBeenCalled();
     });
@@ -100,10 +103,14 @@ describe('CustomersService', () => {
         company: 'Original Co',
         city: 'Toronto',
         notes: 'Original notes',
-        status: CustomerStatus.LEAD,
+        status: CustomerStatus.INACTIVE, // forced by remove() at delete time
         deletedAt: new Date('2026-01-01'),
       };
       customerRepo.findOne.mockResolvedValue(existing);
+      activityRepo.findOne.mockResolvedValue({
+        type: CustomerActivityType.DEACTIVATED,
+        previousStatus: CustomerStatus.LEAD,
+      });
 
       const dto = { firstName: 'New', lastName: 'Name', email: 'reuse@example.com' };
       const result = await service.create(dto as any);
@@ -117,7 +124,77 @@ describe('CustomersService', () => {
       expect(activityRepo.create).toHaveBeenCalledWith({
         customerId: 5,
         type: CustomerActivityType.REACTIVATED,
+        previousStatus: null,
       });
+    });
+
+    it('restores the status the customer had before it was deleted', async () => {
+      const existing = {
+        id: 5,
+        email: 'reuse@example.com',
+        status: CustomerStatus.INACTIVE,
+        deletedAt: new Date('2026-01-01'),
+      };
+      customerRepo.findOne.mockResolvedValue(existing);
+      activityRepo.findOne.mockResolvedValue({
+        type: CustomerActivityType.DEACTIVATED,
+        previousStatus: CustomerStatus.ACTIVE,
+      });
+
+      const result = await service.create({
+        firstName: 'New',
+        lastName: 'Name',
+        email: 'reuse@example.com',
+      } as any);
+
+      expect(activityRepo.findOne).toHaveBeenCalledWith({
+        where: { customerId: 5, type: CustomerActivityType.DEACTIVATED },
+        order: { occurredAt: 'DESC' },
+      });
+      expect(result.status).toBe(CustomerStatus.ACTIVE);
+    });
+
+    it('defaults to LEAD when reactivating a customer with no recorded prior status', async () => {
+      const existing = {
+        id: 5,
+        email: 'reuse@example.com',
+        status: CustomerStatus.INACTIVE,
+        deletedAt: new Date('2026-01-01'),
+      };
+      customerRepo.findOne.mockResolvedValue(existing);
+      activityRepo.findOne.mockResolvedValue(null);
+
+      const result = await service.create({
+        firstName: 'New',
+        lastName: 'Name',
+        email: 'reuse@example.com',
+      } as any);
+
+      expect(result.status).toBe(CustomerStatus.LEAD);
+    });
+
+    it('lets an explicitly submitted status override the restored one', async () => {
+      const existing = {
+        id: 5,
+        email: 'reuse@example.com',
+        status: CustomerStatus.INACTIVE,
+        deletedAt: new Date('2026-01-01'),
+      };
+      customerRepo.findOne.mockResolvedValue(existing);
+      activityRepo.findOne.mockResolvedValue({
+        type: CustomerActivityType.DEACTIVATED,
+        previousStatus: CustomerStatus.ACTIVE,
+      });
+
+      const result = await service.create({
+        firstName: 'New',
+        lastName: 'Name',
+        email: 'reuse@example.com',
+        status: CustomerStatus.LEAD,
+      } as any);
+
+      expect(activityRepo.findOne).not.toHaveBeenCalled();
+      expect(result.status).toBe(CustomerStatus.LEAD);
     });
   });
 
@@ -199,15 +276,22 @@ describe('CustomersService', () => {
   });
 
   describe('remove', () => {
-    it('soft-removes the customer and logs a DEACTIVATED activity', async () => {
-      customerRepo.findOne.mockResolvedValue({ id: 1 });
+    it('forces status to INACTIVE, soft-removes the customer, and logs the prior status', async () => {
+      const customer = { id: 1, status: CustomerStatus.ACTIVE };
+      customerRepo.findOne.mockResolvedValue(customer);
 
       await service.remove(1);
 
-      expect(customerRepo.softRemove).toHaveBeenCalledWith({ id: 1 });
+      expect(customer.status).toBe(CustomerStatus.INACTIVE);
+      // softRemove() alone only persists the delete-date column in real
+      // TypeORM -- the status change needs its own explicit save() call,
+      // which a plain mock can't otherwise verify actually persists.
+      expect(customerRepo.save).toHaveBeenCalledWith(customer);
+      expect(customerRepo.softRemove).toHaveBeenCalledWith(customer);
       expect(activityRepo.create).toHaveBeenCalledWith({
         customerId: 1,
         type: CustomerActivityType.DEACTIVATED,
+        previousStatus: CustomerStatus.ACTIVE,
       });
     });
 
@@ -220,21 +304,30 @@ describe('CustomersService', () => {
   });
 
   describe('removeMany', () => {
-    it('soft-removes all matching customers and logs one DEACTIVATED activity each', async () => {
-      customerRepo.findBy.mockResolvedValue([{ id: 1 }, { id: 2 }]);
+    it('forces each status to INACTIVE, soft-removes them, and logs each prior status', async () => {
+      const customers = [
+        { id: 1, status: CustomerStatus.ACTIVE },
+        { id: 2, status: CustomerStatus.LEAD },
+      ];
+      customerRepo.findBy.mockResolvedValue(customers);
 
       await service.removeMany([1, 2]);
 
       expect(customerRepo.findBy).toHaveBeenCalledWith({ id: In([1, 2]) });
-      expect(customerRepo.softRemove).toHaveBeenCalledWith([{ id: 1 }, { id: 2 }]);
+      expect(customers[0].status).toBe(CustomerStatus.INACTIVE);
+      expect(customers[1].status).toBe(CustomerStatus.INACTIVE);
+      expect(customerRepo.save).toHaveBeenCalledWith(customers);
+      expect(customerRepo.softRemove).toHaveBeenCalledWith(customers);
       expect(activityRepo.create).toHaveBeenCalledTimes(2);
       expect(activityRepo.create).toHaveBeenCalledWith({
         customerId: 1,
         type: CustomerActivityType.DEACTIVATED,
+        previousStatus: CustomerStatus.ACTIVE,
       });
       expect(activityRepo.create).toHaveBeenCalledWith({
         customerId: 2,
         type: CustomerActivityType.DEACTIVATED,
+        previousStatus: CustomerStatus.LEAD,
       });
     });
 

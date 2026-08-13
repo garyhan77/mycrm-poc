@@ -178,6 +178,7 @@ describe('Customers (e2e)', () => {
       expect(reactivateRes.body.company).toBe('Keep Co');
       expect(reactivateRes.body.notes).toBe('Keep these notes');
       expect(reactivateRes.body.deletedAt).toBeNull();
+      expect(reactivateRes.body.status).toBe('LEAD'); // restored default, none was set before delete
 
       activityRes = await request(server()).get(`/api/customers/${id}/activity`).expect(200);
       expect(activityRes.body.map((a: { type: string }) => a.type)).toEqual([
@@ -188,6 +189,61 @@ describe('Customers (e2e)', () => {
 
       const searchRes = await request(server()).get('/api/customers?q=cycle').expect(200);
       expect(searchRes.body.total).toBe(1);
+    });
+
+    it('forces status to INACTIVE on delete, records the prior status, and restores it on reactivation', async () => {
+      const createRes = await request(server())
+        .post('/api/customers')
+        .send({ firstName: 'Status', lastName: 'Cycle', email: 'status-cycle@example.com' })
+        .expect(201);
+      const id = createRes.body.id;
+
+      await request(server())
+        .patch(`/api/customers/${id}`)
+        .send({ status: 'ACTIVE' })
+        .expect(200);
+
+      await request(server()).delete(`/api/customers/${id}`).expect(204);
+
+      const activityAfterDelete = await request(server())
+        .get(`/api/customers/${id}/activity`)
+        .expect(200);
+      const deactivatedEvent = activityAfterDelete.body.find(
+        (a: { type: string }) => a.type === 'DEACTIVATED',
+      );
+      expect(deactivatedEvent.previousStatus).toBe('ACTIVE');
+
+      const reactivateRes = await request(server())
+        .post('/api/customers')
+        .send({ firstName: 'Status', lastName: 'Cycle', email: 'status-cycle@example.com' })
+        .expect(201);
+      expect(reactivateRes.body.status).toBe('ACTIVE');
+    });
+
+    it('lets an explicitly submitted status on re-add override the restored one', async () => {
+      const createRes = await request(server())
+        .post('/api/customers')
+        .send({
+          firstName: 'Override',
+          lastName: 'Status',
+          email: 'override-status@example.com',
+          status: 'ACTIVE',
+        })
+        .expect(201);
+      const id = createRes.body.id;
+
+      await request(server()).delete(`/api/customers/${id}`).expect(204);
+
+      const reactivateRes = await request(server())
+        .post('/api/customers')
+        .send({
+          firstName: 'Override',
+          lastName: 'Status',
+          email: 'override-status@example.com',
+          status: 'INACTIVE',
+        })
+        .expect(201);
+      expect(reactivateRes.body.status).toBe('INACTIVE');
     });
 
     it('still blocks a true duplicate email that belongs to an active customer with 409', async () => {
