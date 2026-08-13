@@ -17,13 +17,20 @@ See `docs/` for the full documentation set: [requirements](docs/01-requirements.
 
 ## Setup
 
-1. **Install dependencies** (npm workspaces, run once from the repo root):
+1. **Clone the repository:**
+
+   ```bash
+   git clone https://github.com/garyhan77/mycrm-poc.git
+   cd mycrm-poc
+   ```
+
+2. **Install dependencies** (npm workspaces, run once from the repo root):
 
    ```bash
    npm install
    ```
 
-2. **Start MySQL** and create the databases:
+3. **Start MySQL** and create the databases:
 
    ```bash
    brew services start mysql
@@ -38,7 +45,7 @@ See `docs/` for the full documentation set: [requirements](docs/01-requirements.
    SQL
    ```
 
-3. **Configure environment variables:**
+4. **Configure environment variables:**
 
    ```bash
    cp apps/api/.env.example apps/api/.env
@@ -47,7 +54,7 @@ See `docs/` for the full documentation set: [requirements](docs/01-requirements.
 
    The defaults in both files match the database/user created above and point the frontend at `http://localhost:3001/api`; adjust if you used different credentials.
 
-4. **Run migrations** (creates `customers` and `customer_activities` in both databases):
+5. **Run migrations** (creates `customers` and `customer_activities` in both databases):
 
    ```bash
    cd apps/api
@@ -56,7 +63,7 @@ See `docs/` for the full documentation set: [requirements](docs/01-requirements.
    cd ../..
    ```
 
-5. **Seed demo data** (30 customers with `CREATED` activity records):
+6. **Seed demo data** (30 customers with `CREATED` activity records):
 
    ```bash
    cd apps/api && npm run seed && cd ../..
