@@ -2,6 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Customer } from './customer.entity';
+import { CustomerActivity, CustomerActivityType } from './customer-activity.entity';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { QueryCustomersDto } from './dto/query-customers.dto';
@@ -18,12 +19,46 @@ export class CustomersService {
   constructor(
     @InjectRepository(Customer)
     private readonly customersRepository: Repository<Customer>,
+    @InjectRepository(CustomerActivity)
+    private readonly activityRepository: Repository<CustomerActivity>,
   ) {}
 
   async create(dto: CreateCustomerDto): Promise<Customer> {
-    await this.assertEmailIsAvailable(dto.email);
+    // withDeleted: the unique index on email still counts soft-deleted rows,
+    // so a previously-deleted customer's email is also "taken" at the DB level.
+    const existing = await this.customersRepository.findOne({
+      where: { email: dto.email },
+      withDeleted: true,
+    });
+
+    if (existing && !existing.deletedAt) {
+      throw new ConflictException(`A customer with email ${dto.email} already exists`);
+    }
+
+    if (existing && existing.deletedAt) {
+      // Re-adding a previously-deleted customer's email reactivates that record
+      // instead of creating a new one, so order/address/notes history isn't lost.
+      // Fields left blank on the Add form simply keep their prior values.
+      //
+      // CreateCustomerDto's optional fields compile (useDefineForClassFields,
+      // implied by this project's ES2023 target) to real own properties
+      // initialized to `undefined` rather than being genuinely absent, so a
+      // plain Object.assign(existing, dto) would overwrite every field the
+      // client left blank with undefined. Only merge fields actually present.
+      const submittedFields = Object.fromEntries(
+        Object.entries(dto).filter(([, value]) => value !== undefined),
+      );
+      Object.assign(existing, submittedFields);
+      existing.deletedAt = null;
+      const reactivated = await this.customersRepository.save(existing);
+      await this.logActivity(reactivated.id, CustomerActivityType.REACTIVATED);
+      return reactivated;
+    }
+
     const customer = this.customersRepository.create(dto);
-    return this.customersRepository.save(customer);
+    const created = await this.customersRepository.save(customer);
+    await this.logActivity(created.id, CustomerActivityType.CREATED);
+    return created;
   }
 
   async findAll(query: QueryCustomersDto): Promise<PaginatedCustomers> {
@@ -73,16 +108,32 @@ export class CustomersService {
   async remove(id: number): Promise<void> {
     const customer = await this.findOne(id);
     await this.customersRepository.softRemove(customer);
+    await this.logActivity(id, CustomerActivityType.DEACTIVATED);
   }
 
   async removeMany(ids: number[]): Promise<void> {
     const customers = await this.customersRepository.findBy({ id: In(ids) });
     await this.customersRepository.softRemove(customers);
+    await Promise.all(
+      customers.map((customer) => this.logActivity(customer.id, CustomerActivityType.DEACTIVATED)),
+    );
+  }
+
+  async getActivity(id: number): Promise<CustomerActivity[]> {
+    const customer = await this.customersRepository.findOne({
+      where: { id },
+      withDeleted: true,
+    });
+    if (!customer) {
+      throw new NotFoundException(`Customer ${id} not found`);
+    }
+    return this.activityRepository.find({
+      where: { customerId: id },
+      order: { occurredAt: 'ASC' },
+    });
   }
 
   private async assertEmailIsAvailable(email: string): Promise<void> {
-    // withDeleted: the unique index on email still counts soft-deleted rows,
-    // so a deleted customer's email must also be treated as taken.
     const existing = await this.customersRepository.findOne({
       where: { email },
       withDeleted: true,
@@ -90,5 +141,10 @@ export class CustomersService {
     if (existing) {
       throw new ConflictException(`A customer with email ${email} already exists`);
     }
+  }
+
+  private async logActivity(customerId: number, type: CustomerActivityType): Promise<void> {
+    const activity = this.activityRepository.create({ customerId, type });
+    await this.activityRepository.save(activity);
   }
 }

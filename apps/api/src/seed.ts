@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import dataSource from './data-source';
 import { Customer, CustomerStatus } from './customers/customer.entity';
+import { CustomerActivity, CustomerActivityType } from './customers/customer-activity.entity';
 
 const firstNames = [
   'Ava', 'Liam', 'Sophia', 'Noah', 'Isabella', 'Ethan', 'Mia', 'Lucas',
@@ -25,9 +26,16 @@ const provinces = ['ON', 'BC', 'AB', 'ON', 'QC', 'ON'];
 
 async function seed() {
   await dataSource.initialize();
-  const repo = dataSource.getRepository(Customer);
+  const customerRepo = dataSource.getRepository(Customer);
+  const activityRepo = dataSource.getRepository(CustomerActivity);
 
-  await repo.clear().catch(() => undefined);
+  // MySQL refuses to TRUNCATE a table referenced by an FK constraint at all
+  // (regardless of whether the referencing table currently has rows), so the
+  // constraint check is disabled for the duration of the reset.
+  await dataSource.query('SET FOREIGN_KEY_CHECKS = 0');
+  await dataSource.query('TRUNCATE TABLE customer_activities');
+  await dataSource.query('TRUNCATE TABLE customers');
+  await dataSource.query('SET FOREIGN_KEY_CHECKS = 1');
 
   const customers: Partial<Customer>[] = firstNames.map((firstName, i) => {
     const lastName = lastNames[i];
@@ -50,8 +58,13 @@ async function seed() {
     };
   });
 
-  await repo.save(customers);
-  console.log(`Seeded ${customers.length} customers.`);
+  const saved = await customerRepo.save(customers);
+  const activities = saved.map((customer) =>
+    activityRepo.create({ customerId: customer.id, type: CustomerActivityType.CREATED }),
+  );
+  await activityRepo.save(activities);
+
+  console.log(`Seeded ${saved.length} customers with CREATED activity records.`);
   await dataSource.destroy();
 }
 

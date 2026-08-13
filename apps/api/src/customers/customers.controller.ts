@@ -36,6 +36,11 @@ export class CustomersController {
     return this.customersService.findOne(id);
   }
 
+  @Get(':id/activity')
+  getActivity(@Param('id', ParseIntPipe) id: number) {
+    return this.customersService.getActivity(id);
+  }
+
   @Patch(':id')
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateCustomerDto) {
     return this.customersService.update(id, dto);
