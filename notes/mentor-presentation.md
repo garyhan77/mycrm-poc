@@ -6,10 +6,12 @@ tags: [presentation, crm-poc]
 
 **Format:** informal, no slides — live demo + talking points. **Time:** 15-20 min core, but expect the real conversation to run longer since the mentor is a senior engineer who'll probe. This doc has two parts: (1) a tight script for the time you have, (2) a reference section of likely deep questions with answers, since that second part is where the meeting will actually live.
 
+Read [[design-and-architecture-principles]] first, not just as a reference to fall back on — it's the *reasoning* underneath every answer below. This doc tells you what to say; that one is why it's true. If a question comes up that isn't scripted here, that's the doc that lets you improvise instead of stalling.
+
 ## Before they sit down
 
 - [ ] Both servers running already (`npm run dev:api`, `npm run dev:web`) — don't burn demo time booting things
-- [ ] `crm_poc` reseeded clean: `cd apps/api && npm run seed` (30 customers, 0 deleted) — confirmed clean right now
+- [ ] `crm_poc` reseeded clean right before the meeting: `cd apps/api && npm run seed` — resets to 30 known customers, 0 deleted, so the demo starts from a state you can predict. (Don't reseed *during* practice runs and forget to redo it — check the actual count first: `mysql -u root crm_poc -e "SELECT COUNT(*), SUM(deletedAt IS NOT NULL) FROM customers;"`)
 - [ ] A terminal ready, `cd` into `apps/api`, with a `mysql -u root crm_poc` prompt or a quick `mysql -e "..."` command ready to paste — this is your proof layer, more convincing than the UI alone to a senior engineer
 - [ ] Browser tabs ready: `localhost:3000` (the app), `github.com/garyhan77/mycrm-poc` (repo), and `docs/06-decisions.md` open locally (Obsidian or GitHub) in case they want to see an ADR
 - [ ] Know your own numbers cold: **54 automated tests**, **12 ADRs**, **5 core stories + 1 extension**, **2 tables** (`customers`, `customer_activities`)
@@ -110,7 +112,7 @@ That's literally how it was specified partway through the build — I'd original
 ### Data model
 
 **"Why both `deletedAt` and `status`? Isn't that redundant?"**
-They mean different things. `deletedAt` is the system's "is this record visible" flag — the app filters on it everywhere. `status` (LEAD/ACTIVE/INACTIVE) is a business classification the user sets, independent of deletion. They *were* out of sync until my mentor — well, until I caught it: a deleted customer could still show `status = ACTIVE` in a raw query. Now delete forces `status → INACTIVE` and reactivation restores whatever it was, unless the form explicitly sets a new one.
+They mean different things. `deletedAt` is the system's "is this record visible" flag — the app filters on it everywhere. `status` (LEAD/ACTIVE/INACTIVE) is a business classification the user sets, independent of deletion. They *were* out of sync until I caught it during testing: a deleted customer could still show `status = ACTIVE` in a raw query. Now delete forces `status → INACTIVE` and reactivation restores whatever it was, unless the form explicitly sets a new one.
 
 **"How do you know reactivation restores the correct prior status, not just a default?"**
 It's not inferred — it's read back from the audit log. Every delete writes a `DEACTIVATED` row to `customer_activities` with a `previousStatus` column capturing the exact value at that moment. Reactivation looks up the most recent `DEACTIVATED` row for that customer and restores from there. Verified three ways: a unit test with a mocked activity repo, an e2e test with a real delete→reactivate cycle against real MySQL, and a live curl+SQL check before I trusted either.
