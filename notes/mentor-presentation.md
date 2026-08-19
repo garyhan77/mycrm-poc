@@ -151,6 +151,7 @@ Local only, on purpose (ADR-007). Azure deployment is fully written up as a read
 ## Related
 
 - [[00-index]] — notes index
+- [[design-and-architecture-principles]] — the *why* behind these answers, one level more abstract
 - [[06-decisions|Decision records]] — the ADRs referenced throughout
 - [[05-test-plan|Test plan]] — full bug list and test breakdown
 - [[STATUS]] — current project snapshot

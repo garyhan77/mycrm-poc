@@ -10,6 +10,7 @@ Working notes for the [[01-requirements|CRM PoC]] project. This vault section ho
 
 - [[STATUS]] — current snapshot: where things stand, next action, open items
 - [[mentor-presentation]] — presentation prep: demo flow + deep-question reference
+- [[design-and-architecture-principles]] — the engineering traits this project demonstrates, and why
 
 ## Deliverables
 
