@@ -16,6 +16,29 @@ Read [[design-and-architecture-principles]] first, not just as a reference to fa
 - [ ] Browser tabs ready: `localhost:3000` (the app), `github.com/garyhan77/mycrm-poc` (repo), and `docs/06-decisions.md` open locally (Obsidian or GitHub) in case they want to see an ADR
 - [ ] Know your own numbers cold: **54 automated tests**, **12 ADRs**, **5 core stories + 1 extension**, **2 tables** (`customers`, `customer_activities`)
 
+## SQL commands (copy-paste ready)
+
+Run these from a terminal with `cd apps/api` (or anywhere, fully qualified). Swap in real values where marked. This is your proof layer — showing raw database state is more convincing to a senior engineer than the UI alone, because it can't be faked by client-side rendering.
+
+```bash
+# Overview: total customers vs how many are soft-deleted right now
+mysql -u root crm_poc -e "SELECT COUNT(*) AS total, SUM(deletedAt IS NOT NULL) AS deleted FROM customers;"
+
+# The core reactivation proof: status + deletedAt for one customer by email
+# (swap in the email of the customer you just deleted in the demo)
+mysql -u root crm_poc -e "SELECT id, firstName, lastName, email, status, deletedAt FROM customers WHERE email = 'PUT_EMAIL_HERE';"
+
+# Full audit trail for one customer, straight from SQL (alternative to the
+# GET /api/customers/:id/activity call if you'd rather show it this way)
+# (swap in the id from the query above)
+mysql -u root crm_poc -e "SELECT type, previousStatus, occurredAt FROM customer_activities WHERE customerId = PUT_ID_HERE ORDER BY occurredAt ASC;"
+
+# Convenience: whatever you touched most recently, without hunting for the exact email
+mysql -u root crm_poc -e "SELECT id, firstName, lastName, email, status, deletedAt, updatedAt FROM customers ORDER BY updatedAt DESC LIMIT 5;"
+```
+
+If you'd rather stay inside an interactive prompt instead of one-off `-e` commands: `mysql -u root crm_poc`, then paste just the `SELECT` statements without the `mysql -u root crm_poc -e "..."` wrapper.
+
 ---
 
 ## The 15-20 minute flow
@@ -110,6 +133,9 @@ Considered and written up (ADR-004). Chose to keep one language (TypeScript) acr
 That's literally how it was specified partway through the build — I'd originally planned routed pages (`/customers/new`, `/customers/:id`), then got redirected to one landing page with popups. Cost I noted for the record: no bookmarkable/shareable URL per customer, and Next.js's actual routing capability goes almost unused. Documented as ADR-010, not silently absorbed.
 
 ### Data model
+
+**"Does the frontend actually expose reactivation, or is that just an API trick?"**
+It's real from the frontend, but transparent — there's no dedicated "reactivate" button. You trigger it through the exact same Add customer form: type in the same email a deleted customer had, submit. The frontend has no special-casing for it at all; `CustomerFormModal` just calls the same `createCustomer()` either way, and the server decides whether that's a fresh insert or a reactivation. Two honest gaps if pushed on this: there's no UI to *browse* deleted customers (they're invisible everywhere, so you have to already know the email), and the success response looks identical either way — no "this customer was reactivated" distinction shown to the user. Good "what would you improve" material, not something I'd try to hide.
 
 **"Why both `deletedAt` and `status`? Isn't that redundant?"**
 They mean different things. `deletedAt` is the system's "is this record visible" flag — the app filters on it everywhere. `status` (LEAD/ACTIVE/INACTIVE) is a business classification the user sets, independent of deletion. They *were* out of sync until I caught it during testing: a deleted customer could still show `status = ACTIVE` in a raw query. Now delete forces `status → INACTIVE` and reactivation restores whatever it was, unless the form explicitly sets a new one.
